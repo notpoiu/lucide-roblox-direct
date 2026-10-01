@@ -103,8 +103,7 @@ if type(getcustomasset) == "function" then
 	local fontFace
 
 	function Lucide.GetFontAsset(name: string)
-		local codepoint = fontCodepoints[name]
-		if not codepoint then
+		if not fontCodepoints[name] then
 			return nil
 		end
 
@@ -126,13 +125,14 @@ if type(getcustomasset) == "function" then
 			local familyPath = `{directory}/lucide.font`
 			writefile(familyPath, game:GetService("HttpService"):JSONEncode({
 				name = "Lucide",
+				loadStrategy = "sameFamilyOnly",
 				faces = {
 					{ name = "Regular", weight = 400, style = "normal", assetId = getcustomasset(ttfPath) },
 				},
 			}))
 			fontFace = Font.new(getcustomasset(familyPath))
 			local params = Instance.new("GetTextBoundsParams")
-			params.Font, params.Text, params.Size, params.Width = fontFace, utf8.char(codepoint), 24, 100
+			params.Font, params.Text, params.Size, params.Width = fontFace, name, 24, 100
 			local loaded, result = pcall(function()
 				return game:GetService("TextService"):GetTextBoundsAsync(params)
 			end)
@@ -144,7 +144,7 @@ if type(getcustomasset) == "function" then
 			pcall(PruneCache, "font", directory)
 		end
 
-		return { FontFace = fontFace, Text = utf8.char(codepoint) }
+		return { FontFace = fontFace, Text = name }
 	end
 end
 

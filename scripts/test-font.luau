@@ -70,6 +70,7 @@ local function check(source, verifySprites)
 		local family = serde.decode("json", assert(files[asset:sub(10)]))
 		assert(family.faces[1].assetId == asset:gsub("/[^/]+$", "/lucide.ttf"))
 		assert(family.faces[1].weight == 400 and family.faces[1].style == "normal")
+		assert(family.loadStrategy == "sameFamilyOnly")
 		creations += 1
 		return face
 	end }
@@ -86,7 +87,7 @@ local function check(source, verifySprites)
 		GetService = function(_, name)
 			if name == "TextService" then
 				return { GetTextBoundsAsync = function(_, params)
-					assert(params.Font == face and utf8.len(params.Text) == 1)
+					assert(params.Font == face and data.icons[params.Text])
 					assert(params.Size == 24 and params.Width == 100)
 					if boundsFailure then error("font unavailable") end
 					return { X = 24, Y = 24 }
@@ -124,8 +125,8 @@ local function check(source, verifySprites)
 	local before = downloads
 	assert(custom.GetFontAsset("not-an-icon") == nil and downloads == before)
 	local moon = custom.GetFontAsset("moon")
-	assert(moon.FontFace == face and moon.Text == utf8.char(data.icons.moon))
-	assert(custom.GetFontAsset("mountain").Text == utf8.char(data.icons.mountain))
+	assert(moon.FontFace == face and moon.Text == "moon")
+	assert(custom.GetFontAsset("mountain").Text == "mountain")
 	assert(downloads == before + 1 and creations == 1)
 	assert(folders[previousFont] and not folders[olderFont])
 	assert(folders["lucide-icons/font-notes"] and folders["lucide-icons/sprites-notes"])

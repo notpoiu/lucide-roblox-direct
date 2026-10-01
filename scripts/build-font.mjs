@@ -31,6 +31,7 @@ await svgtofont({
   dist: fontDir,
   fontName: "lucide",
   css: false,
+  addLigatures: true,
   emptyDist: true,
   svgicons2svgfont: { fontHeight: 1000, normalize: false },
   getIconUnicode: (name) => {
@@ -42,9 +43,27 @@ await svgtofont({
 const ttfPath = path.join(fontDir, "lucide.ttf");
 const font = await readFile(ttfPath);
 if (font.readUInt32BE(0) !== 0x00010000) throw new Error("Invalid TrueType font output");
+const tables = new Map(Array.from({ length: font.readUInt16BE(4) }, (_, index) => {
+  const record = 12 + index * 16;
+  return [font.toString("ascii", record, record + 4), record];
+}));
+if (font.readUInt32BE(tables.get("GSUB") + 12) >= 65536) throw new Error("Ligature table exceeds its 16-bit offset limit");
+const os2 = tables.get("OS/2");
+const os2Offset = font.readUInt32BE(os2 + 8);
+const headOffset = font.readUInt32BE(tables.get("head") + 8);
+font.writeUInt32BE(1, os2Offset + 42);
+font.writeUInt32BE(0x10000000, os2Offset + 46);
+font.writeUInt32BE(0, headOffset + 8);
+function checksum(offset, length) {
+  let sum = 0;
+  for (let position = offset; position < offset + length; position += 4) sum = (sum + font.readUInt32BE(position)) >>> 0;
+  return sum;
+}
+font.writeUInt32BE(checksum(os2Offset, font.readUInt32BE(os2 + 12)), os2 + 4);
+font.writeUInt32BE((0xB1B0AFBA - checksum(0, font.length)) >>> 0, headOffset + 8);
 const version = createHash("sha256").update(font).digest("hex");
 await mkdir(outputDir, { recursive: true });
-await copyFile(ttfPath, path.join(outputDir, "lucide.ttf"));
+await writeFile(path.join(outputDir, "lucide.ttf"), font);
 await copyFile("build/lucide/LICENSE", path.join(outputDir, "LICENSE"));
 await writeFile(path.join(outputDir, "codepoints.json"), JSON.stringify({ version, nextCodepoint, icons }, null, 2) + "\n");
 console.log(`Generated lucide.ttf with ${names.length} icons`);

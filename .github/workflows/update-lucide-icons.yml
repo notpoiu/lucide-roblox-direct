@@ -34,7 +34,7 @@ jobs:
       - name: Install system dependencies (Inkscape, ImageMagick)
         run: |
           sudo apt-get update
-          sudo apt-get install -y inkscape imagemagick build-essential pkg-config libssl-dev
+          sudo apt-get install -y inkscape imagemagick build-essential pkg-config libssl-dev libharfbuzz-bin
 
       - name: Ensure ImageMagick CLI (magick)
         run: |
