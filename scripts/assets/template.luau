@@ -47,8 +47,6 @@ do
 		writefile(AssetManager.Path(relative), data)
 	end
 
-	-- Downloads `url` into `relative` unless it is already cached.
-	-- `validate` rejects bad responses so they are never cached.
 	function AssetManager.Download(relative: string, url: string, validate: ((string) -> boolean)?)
 		if AssetManager.IsFile(relative) then return end
 
@@ -57,7 +55,6 @@ do
 		AssetManager.Write(relative, data)
 	end
 
-	-- Names of the entries directly inside BASE_PATH
 	function AssetManager.ListNames(): { string }
 		local names = {}
 		for _, entry in listfiles(BASE_PATH) do
@@ -80,9 +77,9 @@ do
 	end
 end
 
--- Only folders matching these are ever deleted, so unrelated folders stay untouched
 local CACHE_FOLDER_PATTERNS = {
 	"^" .. string.rep("%x", 64) .. "$",
+
 	-- Layouts from older builds
 	"^font%-" .. string.rep("%x", 64) .. "$",
 	"^sprites%-%d%d%d%d%-%d%d%-%d%dT%d+Z?$",
