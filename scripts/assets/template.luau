@@ -1,59 +1,136 @@
 local Lucide = {}
-local SPRITE_DIRECTORY = "lucide-icons/sprites-" .. (VERSION):gsub("[^%w%-]", "")
 
-local function PruneCache(kind, current)
-	if not (readfile and listfiles and delfolder) then
-		return
+--// Helpers \\--
+local function Check(...)
+	for index = 1, select("#", ...) do
+		if typeof((select(index, ...))) ~= "function" then return false end
 	end
-	local marker = `lucide-icons/{kind}-cache.txt`
-	local retained = if isfile(marker) then readfile(marker) else ""
-	local previous = retained:match("^[^\n]+")
-	if previous == current then
-		previous = retained:match("\n([^\n]+)")
-	end
-	for _, entry in listfiles("lucide-icons") do
-		local name = entry:gsub("\\", "/"):gsub("/$", ""):match("([^/]+)$")
-		local version = name and name:match(`^{kind}%-(.+)$`)
-		local generated = version and (if kind == "font" then #version == 64 and version:match("^%x+$") else version:match("^%d%d%d%d%-%d%d%-%d%dT%d+Z?$"))
-		local directory = name and `lucide-icons/{name}`
-		if generated and directory ~= current and directory ~= previous and isfolder(directory) then
-			pcall(delfolder, directory)
-		end
-	end
-	writefile(marker, current .. "\n" .. (previous or ""))
+	return true
 end
 
-local IS_GETCUSTOMASSET_BROKEN = false
+local AssetManager = {}
+do
+	local BASE_PATH = "lucide-icons"
 
-if writefile and isfolder and makefolder and getcustomasset then
-	if not isfolder("lucide-icons") then
-		makefolder("lucide-icons")
+	AssetManager.Supported = Check(isfile, isfolder, makefolder, readfile, writefile, getcustomasset)
+	AssetManager.CanDelete = AssetManager.Supported and Check(listfiles, delfolder)
+
+	function AssetManager.Path(relative: string?): string
+		return if relative then `{BASE_PATH}/{relative}` else BASE_PATH
 	end
 
-	if not isfolder(SPRITE_DIRECTORY) then
-		makefolder(SPRITE_DIRECTORY)
-	end
-
-	for spritesheet = 1, DATA_SPRITESHEETS do
-		if isfile(`{SPRITE_DIRECTORY}/{spritesheet}.png`) then
-			continue
+	function AssetManager.EnsureFolder(relative: string?)
+		local current = ""
+		for _, part in string.split(AssetManager.Path(relative), "/") do
+			current = if current == "" then part else `{current}/{part}`
+			if not isfolder(current) then
+				makefolder(current)
+			end
 		end
-
-		writefile(
-			`{SPRITE_DIRECTORY}/{spritesheet}.png`,
-			game:HttpGet(
-				`https://raw.githubusercontent.com/notpoiu/lucide-roblox-direct/refs/heads/main/spritesheets/{spritesheet}.png`
-			)
-		)
 	end
 
-	local Success, _Error = pcall(function()
-		return getcustomasset(`{SPRITE_DIRECTORY}/1.png`)
-	end)
+	function AssetManager.IsFile(relative: string): boolean
+		local success, result = pcall(isfile, AssetManager.Path(relative))
+		return success and result == true
+	end
 
-	IS_GETCUSTOMASSET_BROKEN = not Success
-	if Success then
-		pcall(PruneCache, "sprites", SPRITE_DIRECTORY)
+	function AssetManager.IsFolder(relative: string): boolean
+		local success, result = pcall(isfolder, AssetManager.Path(relative))
+		return success and result == true
+	end
+
+	function AssetManager.Read(relative: string): string?
+		return if AssetManager.IsFile(relative) then readfile(AssetManager.Path(relative)) else nil
+	end
+
+	function AssetManager.Write(relative: string, data: string)
+		writefile(AssetManager.Path(relative), data)
+	end
+
+	-- Downloads `url` into `relative` unless it is already cached.
+	-- `validate` rejects bad responses so they are never cached.
+	function AssetManager.Download(relative: string, url: string, validate: ((string) -> boolean)?)
+		if AssetManager.IsFile(relative) then return end
+
+		local data = game:HttpGet(url)
+		assert(not validate or validate(data), `Invalid download for {relative}`)
+		AssetManager.Write(relative, data)
+	end
+
+	-- Names of the entries directly inside BASE_PATH
+	function AssetManager.ListNames(): { string }
+		local names = {}
+		for _, entry in listfiles(BASE_PATH) do
+			local name = entry:gsub("\\", "/"):gsub("/$", ""):match("([^/]+)$")
+			if name then
+				table.insert(names, name)
+			end
+		end
+		return names
+	end
+
+	function AssetManager.DeleteFolder(relative: string)
+		if AssetManager.CanDelete and AssetManager.IsFolder(relative) then
+			pcall(delfolder, AssetManager.Path(relative))
+		end
+	end
+
+	function AssetManager.GetAsset(relative: string): string
+		return getcustomasset(AssetManager.Path(relative))
+	end
+end
+
+-- Only folders matching these are ever deleted, so unrelated folders stay untouched
+local CACHE_FOLDER_PATTERNS = {
+	"^" .. string.rep("%x", 64) .. "$",
+	-- Layouts from older builds
+	"^font%-" .. string.rep("%x", 64) .. "$",
+	"^sprites%-%d%d%d%d%-%d%d%-%d%dT%d+Z?$",
+}
+
+local function IsCacheFolder(name: string): boolean
+	for _, pattern in CACHE_FOLDER_PATTERNS do
+		if name:match(pattern) then return true end
+	end
+	return false
+end
+
+local function PruneCache(currentFolder: string)
+	if not AssetManager.CanDelete then return end
+
+	local markerFile = "cache.txt"
+	local current = AssetManager.Path(currentFolder)
+	local lines = string.split(AssetManager.Read(markerFile) or "", "\n")
+	local previous = if lines[1] == current then lines[2] else lines[1]
+
+	for _, name in AssetManager.ListNames() do
+		local path = AssetManager.Path(name)
+		if IsCacheFolder(name) and path ~= current and path ~= previous then
+			AssetManager.DeleteFolder(name)
+		end
+	end
+
+	AssetManager.Write(markerFile, current .. "\n" .. (previous or ""))
+end
+
+--// Constants \\--
+local ASSET_BASE_URL = "https://raw.githubusercontent.com/notpoiu/lucide-roblox-direct/refs/heads/main/"
+local ASSET_FOLDER = DATA_ASSET_HASH
+
+--// Sprites \\--
+local USE_CUSTOM_SPRITES = false
+if AssetManager.Supported then
+	USE_CUSTOM_SPRITES = pcall(function()
+		AssetManager.EnsureFolder(ASSET_FOLDER)
+		for spritesheet = 1, DATA_SPRITESHEETS do
+			AssetManager.Download(`{ASSET_FOLDER}/{spritesheet}.png`, `{ASSET_BASE_URL}spritesheets/{spritesheet}.png`, function(data)
+				return data:sub(1, 8) == "\137PNG\r\n\26\n" -- PNG header
+			end)
+		end
+		AssetManager.GetAsset(`{ASSET_FOLDER}/1.png`)
+	end)
+	if USE_CUSTOM_SPRITES then
+		pcall(PruneCache, ASSET_FOLDER)
 	end
 end
 
@@ -97,9 +174,9 @@ function Lucide.GetAsset(name: string)
 	return nil
 end
 
-if type(getcustomasset) == "function" then
+--// Font \\--
+if AssetManager.Supported then
 	local fontCodepoints = DATA_FONT_MAPPINGS
-	local fontVersion = DATA_FONT_HASH
 	local fontFace
 
 	function Lucide.GetFontAsset(name: string)
@@ -108,40 +185,22 @@ if type(getcustomasset) == "function" then
 		end
 
 		if not fontFace then
-			assert(writefile and isfile and isfolder and makefolder, "Custom fonts require filesystem support")
-			local directory = `lucide-icons/font-{fontVersion}`
-			if not isfolder("lucide-icons") then
-				makefolder("lucide-icons")
-			end
-			if not isfolder(directory) then
-				makefolder(directory)
-			end
+			local ttfFile = `{ASSET_FOLDER}/lucide.ttf`
+			local familyFile = `{ASSET_FOLDER}/lucide.font`
 
-			local ttfPath = `{directory}/lucide.ttf`
-			if not isfile(ttfPath) then
-				writefile(ttfPath, game:HttpGet("https://raw.githubusercontent.com/notpoiu/lucide-roblox-direct/refs/heads/main/fonts/lucide.ttf"))
-			end
-
-			local familyPath = `{directory}/lucide.font`
-			writefile(familyPath, game:GetService("HttpService"):JSONEncode({
+			AssetManager.EnsureFolder(ASSET_FOLDER)
+			AssetManager.Download(ttfFile, `{ASSET_BASE_URL}fonts/lucide.ttf`, function(data)
+				return data:sub(1, 4) == "\0\1\0\0" -- TrueType header
+			end)
+			AssetManager.Write(familyFile, game:GetService("HttpService"):JSONEncode({
 				name = "Lucide",
 				loadStrategy = "sameFamilyOnly",
 				faces = {
-					{ name = "Regular", weight = 400, style = "normal", assetId = getcustomasset(ttfPath) },
+					{ name = "Regular", weight = 400, style = "normal", assetId = AssetManager.GetAsset(ttfFile) },
 				},
 			}))
-			fontFace = Font.new(getcustomasset(familyPath))
-			local params = Instance.new("GetTextBoundsParams")
-			params.Font, params.Text, params.Size, params.Width = fontFace, name, 24, 100
-			local loaded, result = pcall(function()
-				return game:GetService("TextService"):GetTextBoundsAsync(params)
-			end)
-			params:Destroy()
-			if not loaded or result.X <= 0 or result.Y <= 0 then
-				fontFace = nil
-				error(`Lucide font failed to load: {result}`, 2)
-			end
-			pcall(PruneCache, "font", directory)
+
+			fontFace = Font.new(AssetManager.GetAsset(familyFile))
 		end
 
 		return { FontFace = fontFace, Text = name }

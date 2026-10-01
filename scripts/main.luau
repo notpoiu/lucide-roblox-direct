@@ -299,9 +299,17 @@ end
 for id, _ in InsertedIds do
 	SerializedData = SerializedData:gsub(
 		`"rbxassetid://{id}"`,
-		`if getcustomasset and not IS_GETCUSTOMASSET_BROKEN then getcustomasset(SPRITE_DIRECTORY .. "/{id}.png") else "rbxassetid://{RealRobloxContentID[id]}"`
+		`if USE_CUSTOM_SPRITES then AssetManager.GetAsset(ASSET_FOLDER .. "/{id}.png") else "rbxassetid://{RealRobloxContentID[id]}"`
 	)
 end
+
+-- Hash every generated asset so the loader caches each build in its own folder
+local AssetHashes = { FontData.version }
+table.sort(SpritesheetFiles)
+for _, file in SpritesheetFiles do
+	table.insert(AssetHashes, serde.hash("sha256", fs.readFile(`spritesheets/{file}.png`)))
+end
+local AssetHash = serde.hash("sha256", table.concat(AssetHashes, "\n"))
 
 -- Updating source.lua
 local Template = fs.readFile("scripts/assets/template.luau")
@@ -309,11 +317,10 @@ local Template = fs.readFile("scripts/assets/template.luau")
 fs.writeFile(
 	"source.lua",
 	ReplaceScriptGlobals(Template, {
-		["VERSION"] = `"{BUILD_VERSION}"`,
 		["DATA_SPRITESHEETS"] = #SpritesheetFiles,
 		["DATA_ICON_MAPPINGS"] = SerializedData,
 		["DATA_FONT_MAPPINGS"] = LuaEncode(FontData.icons),
-		["DATA_FONT_HASH"] = `"{FontData.version}"`,
+		["DATA_ASSET_HASH"] = `"{AssetHash}"`,
 	})
 )
 
