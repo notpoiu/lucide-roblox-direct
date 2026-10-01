@@ -22,6 +22,15 @@ jobs:
         with:
           python-version: "3.x"
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install font dependencies
+        run: npm ci
+
       - name: Install system dependencies (Inkscape, ImageMagick)
         run: |
           sudo apt-get update
@@ -79,6 +88,9 @@ jobs:
           tarmac --version
           lune run scripts/main.luau
 
+      - name: Verify font and loader
+        run: npm test
+
       - name: Commit and push changes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -86,7 +98,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add source.lua spritesheets
+          git add source.lua spritesheets fonts
           if git diff --cached --quiet; then
             echo "No changes to commit."
             exit 0

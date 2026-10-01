@@ -77,4 +77,44 @@ function Lucide.GetAsset(name: string)
 	return nil
 end
 
+if type(getcustomasset) == "function" then
+	local fontCodepoints = DATA_FONT_MAPPINGS
+	local fontVersion = DATA_FONT_HASH
+	local fontFace
+
+	function Lucide.GetFontAsset(name: string)
+		local codepoint = fontCodepoints[name]
+		if not codepoint then
+			return nil
+		end
+
+		if not fontFace then
+			assert(writefile and isfile and isfolder and makefolder, "Custom fonts require filesystem support")
+			local directory = `lucide-icons/font-{fontVersion}`
+			if not isfolder("lucide-icons") then
+				makefolder("lucide-icons")
+			end
+			if not isfolder(directory) then
+				makefolder(directory)
+			end
+
+			local ttfPath = `{directory}/lucide.ttf`
+			if not isfile(ttfPath) then
+				writefile(ttfPath, game:HttpGet("https://raw.githubusercontent.com/notpoiu/lucide-roblox-direct/refs/heads/main/fonts/lucide.ttf"))
+			end
+
+			local familyPath = `{directory}/lucide.font`
+			writefile(familyPath, game:GetService("HttpService"):JSONEncode({
+				name = "Lucide",
+				faces = {
+					{ name = "Regular", weight = 400, style = "normal", assetId = getcustomasset(ttfPath) },
+				},
+			}))
+			fontFace = Font.new(getcustomasset(familyPath))
+		end
+
+		return { FontFace = fontFace, Text = utf8.char(codepoint) }
+	end
+end
+
 return Lucide

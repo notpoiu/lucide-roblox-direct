@@ -6,6 +6,23 @@ lucide-roblox-direct is a script that directly gives you a standalone file that 
 
 Example module found [here](https://github.com/notpoiu/cobalt/blob/main/Src/Utils/UI/Icons.luau)
 
+### Icon font
+
+`source.lua` also exposes `GetFontAsset` when `getcustomasset` is available. The font loads on the first valid lookup.
+
+```lua
+local icon = Lucide.GetFontAsset("moon")
+label.FontFace = icon.FontFace
+label.Text = icon.Text
+label.TextSize = 24
+```
+
+Unknown icon names return `nil`. Environments without `getcustomasset` do not expose `GetFontAsset`. `GetAsset` continues to return spritesheet data.
+
+CI generates `fonts/lucide.ttf` and `fonts/codepoints.json` alongside the spritesheets, then checks font glyphs and loader behavior before committing them. Glyph codepoints remain stable across updates.
+
+To build only the font, install Node.js 24, run `npm ci`, then run `npm run build:font` after the Lucide SVGs are available in `build/lucide/icons`. Run `npm test` after generating `source.lua`.
+
 ## Building
 
 To build lucide-roblox-direct, you need to have Python 3 installed on your system. You can download it from [python.org](https://www.python.org/downloads/). Once you have Python installed, you can run the following command in your terminal:

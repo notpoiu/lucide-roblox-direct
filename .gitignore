@@ -4,3 +4,4 @@ build/
 tarmac-manifest.toml
 .luaurc
 .env
+node_modules/

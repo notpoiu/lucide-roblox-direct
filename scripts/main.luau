@@ -5,6 +5,7 @@ local luau = require("@lune/luau")
 local task = require("@lune/task")
 local process = require("@lune/process")
 local stdio = require("@lune/stdio")
+local serde = require("@lune/serde")
 
 --// Types \\--
 type UploadAssetOptions = {
@@ -220,6 +221,9 @@ print("Starting Lucide icon update script...")
 SetupDirectories()
 SetupLucide()
 
+assert(RunCommand("npm run build:font").ok, "Failed to generate Lucide font")
+local FontData = serde.decode("json", fs.readFile("fonts/codepoints.json"))
+
 ConvertSvgsToPngs()
 ProcessPngs()
 
@@ -318,6 +322,8 @@ fs.writeFile(
 		["VERSION"] = `"{BUILD_VERSION}"`,
 		["DATA_SPRITESHEETS"] = #SpritesheetFiles,
 		["DATA_ICON_MAPPINGS"] = SerializedData,
+		["DATA_FONT_MAPPINGS"] = LuaEncode(FontData.icons),
+		["DATA_FONT_HASH"] = `"{FontData.version}"`,
 	})
 )
 
