@@ -21,6 +21,8 @@ Unknown icon names return `nil`. Environments without `getcustomasset` do not ex
 
 CI generates `fonts/lucide.ttf` and `fonts/codepoints.json` alongside the spritesheets, then checks font glyphs and loader behavior before committing them. Loader downloads are pinned to the asset commit so cached source and images cannot mix versions. Glyph codepoints remain stable across updates.
 
+Generated workspace caches retain the current and previous versions of each asset type when `readfile`, `listfiles`, and `delfolder` are available. Cleanup runs after registration for sprites and after Roblox loads the font for a text-bounds check. Failed loads leave the retained caches untouched. This does not clear copies managed separately by the executor inside Roblox's content folder.
+
 To build only the font, install Node.js 24, run `npm ci`, then run `npm run build:font` after the Lucide SVGs are available in `build/lucide/icons`. Run `npm test` after generating `source.lua`.
 
 ## Building

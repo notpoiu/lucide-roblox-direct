@@ -1,6 +1,28 @@
 local Lucide = {}
 local SPRITE_DIRECTORY = "lucide-icons/sprites-" .. (VERSION):gsub("[^%w%-]", "")
 
+local function PruneCache(kind, current)
+	if not (readfile and listfiles and delfolder) then
+		return
+	end
+	local marker = `lucide-icons/{kind}-cache.txt`
+	local retained = if isfile(marker) then readfile(marker) else ""
+	local previous = retained:match("^[^\n]+")
+	if previous == current then
+		previous = retained:match("\n([^\n]+)")
+	end
+	for _, entry in listfiles("lucide-icons") do
+		local name = entry:gsub("\\", "/"):gsub("/$", ""):match("([^/]+)$")
+		local version = name and name:match(`^{kind}%-(.+)$`)
+		local generated = version and (if kind == "font" then #version == 64 and version:match("^%x+$") else version:match("^%d%d%d%d%-%d%d%-%d%dT%d+Z?$"))
+		local directory = name and `lucide-icons/{name}`
+		if generated and directory ~= current and directory ~= previous and isfolder(directory) then
+			pcall(delfolder, directory)
+		end
+	end
+	writefile(marker, current .. "\n" .. (previous or ""))
+end
+
 local IS_GETCUSTOMASSET_BROKEN = false
 
 if writefile and isfolder and makefolder and getcustomasset then
@@ -30,6 +52,9 @@ if writefile and isfolder and makefolder and getcustomasset then
 	end)
 
 	IS_GETCUSTOMASSET_BROKEN = not Success
+	if Success then
+		pcall(PruneCache, "sprites", SPRITE_DIRECTORY)
+	end
 end
 
 local icons = DATA_ICON_MAPPINGS
@@ -106,6 +131,17 @@ if type(getcustomasset) == "function" then
 				},
 			}))
 			fontFace = Font.new(getcustomasset(familyPath))
+			local params = Instance.new("GetTextBoundsParams")
+			params.Font, params.Text, params.Size, params.Width = fontFace, utf8.char(codepoint), 24, 100
+			local loaded, result = pcall(function()
+				return game:GetService("TextService"):GetTextBoundsAsync(params)
+			end)
+			params:Destroy()
+			if not loaded or result.X <= 0 or result.Y <= 0 then
+				fontFace = nil
+				error(`Lucide font failed to load: {result}`, 2)
+			end
+			pcall(PruneCache, "font", directory)
 		end
 
 		return { FontFace = fontFace, Text = utf8.char(codepoint) }
