@@ -94,7 +94,7 @@ function SetupLucide()
 		RunCommand("git clone --filter=blob:none --sparse https://github.com/lucide-icons/lucide.git", "build")
 	end
 
-	RunCommand("git sparse-checkout set --no-cone icons", "build/lucide")
+	RunCommand("git sparse-checkout set --no-cone /icons/ /LICENSE", "build/lucide")
 	RunCommand("git pull origin main", "build/lucide")
 end
 
