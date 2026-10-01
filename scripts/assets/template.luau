@@ -1,4 +1,5 @@
 local Lucide = {}
+local SPRITE_DIRECTORY = "lucide-icons/sprites-" .. (VERSION):gsub("[^%w%-]", "")
 
 local IS_GETCUSTOMASSET_BROKEN = false
 
@@ -7,31 +8,25 @@ if writefile and isfolder and makefolder and getcustomasset then
 		makefolder("lucide-icons")
 	end
 
-	if not isfile("lucide-icons/version.txt") then
-		writefile("lucide-icons/version.txt", VERSION)
-	end
-
-	local ShouldUpdate = readfile("lucide-icons/version.txt") ~= VERSION
-
-	if ShouldUpdate then
-		writefile("lucide-icons/version.txt", VERSION)
+	if not isfolder(SPRITE_DIRECTORY) then
+		makefolder(SPRITE_DIRECTORY)
 	end
 
 	for spritesheet = 1, DATA_SPRITESHEETS do
-		if isfile(`lucide-icons/{spritesheet}.png`) and not ShouldUpdate then
+		if isfile(`{SPRITE_DIRECTORY}/{spritesheet}.png`) then
 			continue
 		end
 
 		writefile(
-			`lucide-icons/{spritesheet}.png`,
+			`{SPRITE_DIRECTORY}/{spritesheet}.png`,
 			game:HttpGet(
-				`https://raw.githubusercontent.com/deividcomsono/lucide-roblox-direct/refs/heads/main/spritesheets/{spritesheet}.png`
+				`https://raw.githubusercontent.com/notpoiu/lucide-roblox-direct/refs/heads/main/spritesheets/{spritesheet}.png`
 			)
 		)
 	end
 
 	local Success, _Error = pcall(function()
-		return getcustomasset("lucide-icons/1.png")
+		return getcustomasset(`{SPRITE_DIRECTORY}/1.png`)
 	end)
 
 	IS_GETCUSTOMASSET_BROKEN = not Success

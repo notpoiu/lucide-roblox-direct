@@ -135,15 +135,10 @@ function ConvertSvgsToPngs()
 	print(`Found {#svgFiles} SVG files to convert...`)
 
 	local completed = 0
-	local lastCompleted = false
 	for i, svgFile in ipairs(svgFiles) do
 		task.spawn(function()
 			local message = ConvertSvgToPng(svgFile)
 			completed += 1
-
-			if i == #svgFiles then
-				lastCompleted = true
-			end
 
 			print(`[{completed}/{#svgFiles}] {message}`)
 		end)
@@ -155,7 +150,7 @@ function ConvertSvgsToPngs()
 
 	repeat
 		task.wait(0.1)
-	until lastCompleted
+	until completed == #svgFiles
 end
 
 function ProcessPngs()
@@ -190,17 +185,12 @@ function ProcessPngs()
 	print(`Found {#pngFiles} PNG files to process...`)
 
 	-- Create tasks for concurrent processing
-	local lastCompleted = false
 	local completed = 0
 
 	for i, pngFile in ipairs(pngFiles) do
 		task.spawn(function()
 			local result = ProcessPng(pngFile)
 			completed += 1
-
-			if i == #pngFiles then
-				lastCompleted = true
-			end
 
 			print(`[{completed}/{#pngFiles}] {result}`)
 		end)
@@ -212,7 +202,7 @@ function ProcessPngs()
 
 	repeat
 		task.wait(0.1)
-	until lastCompleted
+	until completed == #pngFiles
 end
 
 --// Main \\--
@@ -276,7 +266,7 @@ do
 
 		if not InsertedIds[id] then
 			InsertedIds[id] = true
-			table.insert(ImageAssets, data.Image)
+			ImageAssets[id] = data.Image
 		end
 
 		table.insert(IconNames, name)
@@ -309,7 +299,7 @@ end
 for id, _ in InsertedIds do
 	SerializedData = SerializedData:gsub(
 		`"rbxassetid://{id}"`,
-		`if getcustomasset and not IS_GETCUSTOMASSET_BROKEN then getcustomasset("lucide-icons/{id}.png") else "rbxassetid://{RealRobloxContentID[id]}"`
+		`if getcustomasset and not IS_GETCUSTOMASSET_BROKEN then getcustomasset(SPRITE_DIRECTORY .. "/{id}.png") else "rbxassetid://{RealRobloxContentID[id]}"`
 	)
 end
 

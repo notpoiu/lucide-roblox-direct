@@ -16,14 +16,15 @@ for key, value in values do
 	template = template:gsub(key, function() return value end)
 end
 
-local function check(source)
+local function check(source, verifySprites)
 	local base = { Vector2 = { new = function(x, y) return { x, y } end } }
 	local plain = luau.load(source, { environment = base })()
 	assert(plain.GetFontAsset == nil)
 	assert(plain.GetAsset("moon"))
 	assert(plain.GetAsset("not-an-icon") == nil)
 
-	local files, folders = {}, {}
+	local files = { ["lucide-icons/version.txt"] = "test", ["lucide-icons/1.png"] = "stale" }
+	local folders = { ["lucide-icons"] = true }
 	local downloads, registrations, creations = 0, 0, 0
 	local face = {}
 	local environment = table.clone(base)
@@ -46,8 +47,9 @@ local function check(source)
 	end }
 	environment.game = {
 		HttpGet = function(_, url)
+			assert(url:find("https://raw.githubusercontent.com/notpoiu/lucide-roblox-direct/refs/heads/main/", 1, true) == 1)
 			downloads += 1
-			return if url:match("%.ttf$") then fs.readFile("fonts/lucide.ttf") else "sprite"
+			return if url:match("%.ttf$") then fs.readFile("fonts/lucide.ttf") else fs.readFile(`spritesheets/{assert(url:match("/spritesheets/(%d+)%.png$"))}.png`)
 		end,
 		GetService = function(_, name)
 			assert(name == "HttpService")
@@ -56,6 +58,28 @@ local function check(source)
 	}
 	local custom = luau.load(source, { environment = environment })()
 	assert(type(custom.GetFontAsset) == "function")
+	if verifySprites then
+		local spritePath = custom.GetAsset("moon").Url:sub(10)
+		assert(spritePath:find("lucide-icons/sprites-", 1, true) == 1)
+		assert(files[spritePath] and files[spritePath] ~= "stale")
+		if fs.isFile("build/outputs/mappings.lua") then
+			local mappings = fs.readFile("build/outputs/mappings.lua"):gsub("repeat = {", '["repeat"] = {')
+			local sprites = luau.load(mappings, { environment = base })().formatted_icons
+			local count = 0
+			for name, expected in sprites do
+				local actual = assert(custom.GetAsset(name))
+				assert(actual.Url:match("/(%d+)%.png$") == expected.Image:match("(%d+)$"), `Wrong sheet: {name}`)
+				for axis = 1, 2 do
+					assert(actual.ImageRectSize[axis] == expected.ImageRectSize[axis], `Wrong size: {name}`)
+					assert(actual.ImageRectOffset[axis] == expected.ImageRectOffset[axis], `Wrong offset: {name}`)
+				end
+				assert(data.icons[name], `Missing font mapping: {name}`)
+				count += 1
+			end
+			assert(count == #custom.Icons)
+			print(`Cross-checked {count} spritesheet entries against generated mappings`)
+		end
+	end
 	local before = downloads
 	assert(custom.GetFontAsset("not-an-icon") == nil and downloads == before)
 	local moon = custom.GetFontAsset("moon")
@@ -68,5 +92,5 @@ local function check(source)
 end
 
 check(template)
-check(fs.readFile("source.lua"))
+check(fs.readFile("source.lua"), true)
 print("Font loader: capability gating, lazy loading, glyph lookup, and cache checks passed")
