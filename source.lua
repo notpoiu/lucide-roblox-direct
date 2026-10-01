@@ -20,7 +20,7 @@ if writefile and isfolder and makefolder and getcustomasset then
 		writefile(
 			`{SPRITE_DIRECTORY}/{spritesheet}.png`,
 			game:HttpGet(
-				`https://raw.githubusercontent.com/notpoiu/lucide-roblox-direct/refs/heads/main/spritesheets/{spritesheet}.png`
+				`https://raw.githubusercontent.com/notpoiu/lucide-roblox-direct/7217e0497207501a8da86b6fb64ff58f99eb60ca/spritesheets/{spritesheet}.png`
 			)
 		)
 	end
@@ -95,7 +95,7 @@ if type(getcustomasset) == "function" then
 
 			local ttfPath = `{directory}/lucide.ttf`
 			if not isfile(ttfPath) then
-				writefile(ttfPath, game:HttpGet("https://raw.githubusercontent.com/notpoiu/lucide-roblox-direct/refs/heads/main/fonts/lucide.ttf"))
+				writefile(ttfPath, game:HttpGet("https://raw.githubusercontent.com/notpoiu/lucide-roblox-direct/7217e0497207501a8da86b6fb64ff58f99eb60ca/fonts/lucide.ttf"))
 			end
 
 			local familyPath = `{directory}/lucide.font`

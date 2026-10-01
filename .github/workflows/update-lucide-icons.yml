@@ -98,10 +98,21 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add source.lua spritesheets fonts
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-            exit 0
+          git add spritesheets fonts
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(assets): update generated Lucide assets"
           fi
-          git commit -m "chore(CI): automated lucide icon update"
+          LUCIDE_ASSET_COMMIT="$(git rev-parse HEAD)" node --input-type=module -e '
+            import { readFileSync, writeFileSync } from "node:fs";
+            const source = readFileSync("source.lua", "utf8");
+            const prefix = "https://raw.githubusercontent.com/notpoiu/lucide-roblox-direct/";
+            const pinned = source.replaceAll(prefix + "refs/heads/main/", prefix + process.env.LUCIDE_ASSET_COMMIT + "/");
+            if (pinned === source) throw new Error("No asset URLs found to pin");
+            writeFileSync("source.lua", pinned);
+          '
+          npm test
+          git add source.lua
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(ci): update generated Lucide loader"
+          fi
           git push

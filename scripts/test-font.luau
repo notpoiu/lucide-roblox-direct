@@ -17,6 +17,8 @@ for key, value in values do
 end
 
 local function check(source, verifySprites)
+	local revision = assert(source:match("https://raw%.githubusercontent%.com/notpoiu/lucide%-roblox%-direct/(.-)/spritesheets/"))
+	local assetBase = `https://raw.githubusercontent.com/notpoiu/lucide-roblox-direct/{revision}/`
 	local base = { Vector2 = { new = function(x, y) return { x, y } end } }
 	local plain = luau.load(source, { environment = base })()
 	assert(plain.GetFontAsset == nil)
@@ -47,7 +49,7 @@ local function check(source, verifySprites)
 	end }
 	environment.game = {
 		HttpGet = function(_, url)
-			assert(url:find("https://raw.githubusercontent.com/notpoiu/lucide-roblox-direct/refs/heads/main/", 1, true) == 1)
+			assert(url:find(assetBase, 1, true) == 1)
 			downloads += 1
 			return if url:match("%.ttf$") then fs.readFile("fonts/lucide.ttf") else fs.readFile(`spritesheets/{assert(url:match("/spritesheets/(%d+)%.png$"))}.png`)
 		end,
