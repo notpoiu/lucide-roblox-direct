@@ -7,7 +7,7 @@ local data = serde.decode("json", fs.readFile("fonts/codepoints.json"))
 local template = fs.readFile("scripts/assets/template.luau")
 local values = {
 	DATA_SPRITESHEETS = "1",
-	DATA_ICON_MAPPINGS = '{{"moon"},{"rbxassetid://123"},{[48]={{1,{24,24},{775,375}}}}}',
+	DATA_ICON_MAPPINGS = '{{"moon","mountain"},{"rbxassetid://123"},{[48]={{1,{24,24},{775,375}},{1,{24,24},{0,0}}}}}',
 	DATA_FONT_MAPPINGS = LuaEncode(data.icons),
 	DATA_ASSET_HASH = `"{string.rep("a", 64)}"`,
 }
@@ -16,6 +16,7 @@ for key, value in values do
 end
 
 local function check(source, verifySprites)
+	local eager = source:find("Lucide.GetFontAsset = Lucide.GetAsset", 1, true) ~= nil
 	local revision = assert(source:match("https://raw%.githubusercontent%.com/notpoiu/lucide%-roblox%-direct/([^/]+)/"))
 	local assetBase = `https://raw.githubusercontent.com/notpoiu/lucide-roblox-direct/{revision}/`
 	local base = { Vector2 = { new = function(x, y) return { x, y } end } }
@@ -79,7 +80,7 @@ local function check(source, verifySprites)
 		HttpGet = function(_, url)
 			assert(url:find(assetBase, 1, true) == 1)
 			downloads += 1
-			if badDownload then return "<html>404</html>" end
+			if badDownload and url:match("%.ttf$") then return "<html>404</html>" end
 			return if url:match("%.ttf$") then fs.readFile("fonts/lucide.ttf") else fs.readFile(`spritesheets/{assert(url:match("/spritesheets/(%d+)%.png$"))}.png`)
 		end,
 		GetService = function(_, name)
@@ -89,6 +90,11 @@ local function check(source, verifySprites)
 	}
 	local custom = luau.load(source, { environment = environment })()
 	assert(type(custom.GetFontAsset) == "function")
+	assert(creations == (if eager then 1 else 0))
+	if eager then
+		assert(custom.GetFontAsset == custom.GetAsset)
+		assert(custom.GetAsset("moon").FontFace == face)
+	end
 	assert(folders[previous] and not folders[older], "Previous build kept, older build pruned")
 	assert(not folders[legacyFont] and not folders[legacySprites], "Old folder layouts pruned")
 	for _, directory in unrelated do
@@ -121,23 +127,35 @@ local function check(source, verifySprites)
 	local moon = custom.GetFontAsset("moon")
 	assert(moon.FontFace == face and moon.Text == "moon")
 	assert(custom.GetFontAsset("mountain").Text == "mountain")
-	assert(downloads == before + 1 and creations == 1)
+	local expectedDownloads = before + (if eager then 0 else 1)
+	assert(downloads == expectedDownloads and creations == 1)
 	assert(files[`{current}/lucide.ttf`] and files[`{current}/1.png`], "Font and spritesheets share one folder")
 	local cached = luau.load(source, { environment = environment })()
-	assert(cached.GetFontAsset("moon").FontFace == face and downloads == before + 1)
+	assert(cached.GetFontAsset("moon").FontFace == face and downloads == expectedDownloads)
 	assert(creations == 2 and registrations > 0)
 	assert(folders[previous], "Reloading the same build keeps the previous build")
 
 	local nextHash = string.rep("4", 64)
 	local nextFont = `lucide-icons/{nextHash}/lucide.ttf`
-	local updated = luau.load(source:gsub(assetHash, nextHash), { environment = environment })()
+	local nextSource = source:gsub(assetHash, nextHash)
+	badDownload = eager
+	local updated = luau.load(nextSource, { environment = environment })()
 	assert(not folders[previous] and folders[current], "Update keeps only the build before it")
 	assert(files["lucide-icons/cache.txt"] == `lucide-icons/{nextHash}\n{current}`)
-	badDownload = true
-	local loaded, failure = pcall(updated.GetFontAsset, "moon")
-	assert(not loaded and tostring(failure):find("Invalid download", 1, true))
+	if eager then
+		assert(updated.GetFontAsset == nil, "Failed font does not expose GetFontAsset")
+		local sprite = assert(updated.GetAsset("moon"))
+		assert(sprite.FontFace == nil and sprite.Url, "Failed font keeps sprites available")
+	else
+		badDownload = true
+		local loaded, failure = pcall(updated.GetFontAsset, "moon")
+		assert(not loaded and tostring(failure):find("Invalid download", 1, true))
+	end
 	assert(files[nextFont] == nil, "Bad download not cached")
 	badDownload = false
+	if eager then
+		updated = luau.load(nextSource, { environment = environment })()
+	end
 	assert(updated.GetFontAsset("moon").FontFace == face and files[nextFont])
 	local withoutCleanup = table.clone(environment)
 	withoutCleanup.listfiles, withoutCleanup.delfolder = nil, nil

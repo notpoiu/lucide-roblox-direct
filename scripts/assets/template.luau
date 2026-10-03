@@ -8,6 +8,18 @@ local function Check(...)
 	return true
 end
 
+local function SafeMerge(original: { any }, additional: { any })
+	for key, value in additional do
+		if original[key] then
+			continue
+		end
+
+		original[key] = value
+	end
+
+	return original
+end
+
 local AssetManager = {}
 do
 	local BASE_PATH = "lucide-icons"
@@ -102,7 +114,12 @@ local function PruneCache(currentFolder: string)
 
 	for _, name in AssetManager.ListNames() do
 		local path = AssetManager.Path(name)
-		if IsCacheFolder(name) and path ~= current and path ~= previous then
+		if
+			IsCacheFolder(name) and
+			path ~= current and
+			path ~= previous and
+			not AssetManager.IsFile(path)
+		then
 			AssetManager.DeleteFolder(name)
 		end
 	end
@@ -136,6 +153,31 @@ local iconIndices: { string } = icons[1]
 local idIndices: { string } = icons[2]
 local iconRegistry: { [number]: { number | { number } } } = icons[3]
 
+local fontCodepoints = DATA_FONT_MAPPINGS
+local fontFace
+do
+	pcall(function()
+		if not AssetManager.Supported then return end
+		
+		local ttfFile = `{ASSET_FOLDER}/lucide.ttf`
+		local familyFile = `{ASSET_FOLDER}/lucide.font`
+
+		AssetManager.EnsureFolder(ASSET_FOLDER)
+		AssetManager.Download(ttfFile, `{ASSET_BASE_URL}fonts/lucide.ttf`, function(data)
+			return data:sub(1, 4) == "\0\1\0\0" -- TrueType header
+		end)
+		AssetManager.Write(familyFile, game:GetService("HttpService"):JSONEncode({
+			name = "Lucide",
+			loadStrategy = "sameFamilyOnly",
+			faces = {
+				{ name = "Regular", weight = 400, style = "normal", assetId = AssetManager.GetAsset(ttfFile) },
+			},
+		}))
+
+		fontFace = Font.new(AssetManager.GetAsset(familyFile))
+	end)
+end
+
 Lucide.Icons = iconIndices
 function Lucide.GetAsset(name: string)
 	local size = 48
@@ -158,50 +200,36 @@ function Lucide.GetAsset(name: string)
 		end
 	end
 
+	local iconData = nil
+	
 	local icon = iconRegistry[currentSize][iconIndex]
 	if icon then
-		return {
+		iconData = iconData or {}
+
+		SafeMerge(iconData, {
 			IconName = name,
 			Url = idIndices[icon[1]],
 			ImageRectSize = Vector2.new(icon[2][1], icon[2][2]),
 			ImageRectOffset = Vector2.new(icon[3][1], icon[3][2]),
-		}
+		})
 	end
 
-	return nil
+	local codepoint = fontCodepoints[name]
+	if codepoint and fontFace then
+		iconData = iconData or {}
+
+		SafeMerge(iconData, {
+			FontFace = fontFace,
+			Text = name,
+		})
+	end
+
+	return iconData
 end
 
 --// Font \\--
-if AssetManager.Supported then
-	local fontCodepoints = DATA_FONT_MAPPINGS
-	local fontFace
-
-	function Lucide.GetFontAsset(name: string)
-		if not fontCodepoints[name] then
-			return nil
-		end
-
-		if not fontFace then
-			local ttfFile = `{ASSET_FOLDER}/lucide.ttf`
-			local familyFile = `{ASSET_FOLDER}/lucide.font`
-
-			AssetManager.EnsureFolder(ASSET_FOLDER)
-			AssetManager.Download(ttfFile, `{ASSET_BASE_URL}fonts/lucide.ttf`, function(data)
-				return data:sub(1, 4) == "\0\1\0\0" -- TrueType header
-			end)
-			AssetManager.Write(familyFile, game:GetService("HttpService"):JSONEncode({
-				name = "Lucide",
-				loadStrategy = "sameFamilyOnly",
-				faces = {
-					{ name = "Regular", weight = 400, style = "normal", assetId = AssetManager.GetAsset(ttfFile) },
-				},
-			}))
-
-			fontFace = Font.new(AssetManager.GetAsset(familyFile))
-		end
-
-		return { FontFace = fontFace, Text = name }
-	end
+if fontFace then
+	Lucide.GetFontAsset = Lucide.GetAsset
 end
 
 return Lucide
